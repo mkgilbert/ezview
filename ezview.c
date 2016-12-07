@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "linmath.h"
+#include "ppmrw.h"
 
 typedef struct {
     float Position[2];
@@ -15,9 +16,10 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-        {{1, -1}, {0.99999, 0}},
+        {{1, -1}, {0, 0.99999}},
         {{1, 1},  {0.99999, 0.99999}},
-        {{-1, 1}, {0, 0.99999}}
+        {{-1, 1}, {0.99999, 0}},
+        {{-1, -1}, {0, 0}}
 };
 
 static const char* vertex_shader_text =
@@ -70,7 +72,7 @@ void glCompileShaderOrDie(GLuint shader) {
 }
 
 // 4 x 4 image..
-unsigned char image[] = {
+/*unsigned char image[] = {
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255,
@@ -90,10 +92,57 @@ unsigned char image[] = {
         255, 0, 255, 255,
         255, 0, 255, 255,
         255, 0, 255, 255
-};
+};*/
 
 int main(int argc, char *argv[]) {
 
+    FILE *in_ptr;
+    int ret_val;
+    char c;
+
+    in_ptr = fopen(argv[1], "rb");  // input file pointer
+
+    // error check the file pointers
+    if (in_ptr == NULL) {
+        fprintf(stderr, "Error: main: Input file can't be opened\n");
+        return 1;
+    }
+    // allocate space for header information
+    header *hdr = (header *)malloc(sizeof(header));
+
+
+    /******************************//**
+     * read data from input file
+     *********************************/
+
+    // read header of input file
+    ret_val = read_header(in_ptr, hdr);
+
+    if (ret_val < 0) {
+        fprintf(stderr, "Error: main: Problem reading header\n");
+        return 1;
+    }
+
+    // store the file type of the origin file so we know what we're converting from
+    int origin_file_type = hdr->file_type;
+
+    // create img struct to store relevant image info
+    image image;
+    image.width = hdr->width;
+    image.height = hdr->height;
+    image.max_color_val = hdr->max_color_val;
+    image.pixmap = malloc(sizeof(RGBPixel) * image.width * image.height);
+
+    // read image data (pixels)
+    if (origin_file_type == 3)
+        ret_val = read_p3_data(in_ptr, &image);
+    else
+        ret_val = read_p6_data(in_ptr, &image);
+
+    if (ret_val < 0) {
+        fprintf(stderr, "Error: main: Problem reading image data\n");
+        return -1;
+    }
 
     /* OpenGL setup */
     GLFWwindow* window;
@@ -108,7 +157,7 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(640, 480, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(image.width, image.height, "Simple example", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -118,7 +167,6 @@ int main(int argc, char *argv[]) {
     glfwSetKeyCallback(window, key_callback);
 
     glfwMakeContextCurrent(window);
-    // gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
     glfwSwapInterval(1);
 
     // NOTE: OpenGL error checks have been omitted for brevity
@@ -169,8 +217,8 @@ int main(int argc, char *argv[]) {
                           sizeof(Vertex),
                           (void*) (sizeof(float) * 2));
 
-    int image_width = 4;
-    int image_height = 4;
+    //int image_width = 4;
+    //int image_height = 4;
 
     GLuint texID;
     glGenTextures(1, &texID);
@@ -178,8 +226,8 @@ int main(int argc, char *argv[]) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA,
-                 GL_UNSIGNED_BYTE, image);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image.width, image.height, 0, GL_RGB,
+                 GL_UNSIGNED_BYTE, image.pixmap);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texID);
@@ -204,7 +252,7 @@ int main(int argc, char *argv[]) {
 
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawArrays(GL_QUADS, 0, 4);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -213,5 +261,8 @@ int main(int argc, char *argv[]) {
     glfwDestroyWindow(window);
 
     glfwTerminate();
+    free(image.pixmap);
+    free(hdr);
+    fclose(in_ptr);
     exit(EXIT_SUCCESS);
 }
