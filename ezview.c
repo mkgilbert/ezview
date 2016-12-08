@@ -145,11 +145,24 @@ void glCompileShaderOrDie(GLuint shader) {
         char* info = malloc(infoLen+1);
         GLint done;
         glGetShaderInfoLog(shader, infoLen, &done, info);
-        printf("Unable to compile shader: %s\n", info);
+        fprintf(stderr, "Error: Unable to compile shader: %s\n", info);
         exit(1);
     }
 }
 
+void glLinkProgramOrDie(GLuint program) {
+    GLint linked;
+    glLinkProgram(program);
+    glGetProgramiv(program, GL_LINK_STATUS, &linked);
+
+    if (!linked) {
+        GLint infoLen = 0;
+        char *info = malloc(infoLen+1);
+        GLint done;
+        glGetProgramInfoLog(program, infoLen, &done, info);
+        fprintf(stderr, "Error: Unable to link program: %s\n", info);
+    }
+}
 /************************************************
  * Main function - loads image and starts loop
  ************************************************/
@@ -203,6 +216,10 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // file cleanup
+    free(hdr);
+    fclose(in_ptr);
+
     /***********************************
      * OpenGL setup
      ***********************************/
@@ -247,8 +264,7 @@ int main(int argc, char *argv[]) {
     program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
-    // more error checking! glLinkProgramOrDie!
+    glLinkProgramOrDie(program);
 
     mvp_location = glGetUniformLocation(program, "MVP");
     assert(mvp_location != -1);
@@ -293,17 +309,13 @@ int main(int argc, char *argv[]) {
 
     while (!glfwWindowShouldClose(window))
     {
-        float ratio;
         int width, height;
         mat4x4 m, p, mvp;
 
         glfwGetFramebufferSize(window, &width, &height);
-        ratio = width / (float) height;
-
 
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
-
 
         mat4x4_identity(m);
         mat4x4 s = {
@@ -331,8 +343,6 @@ int main(int argc, char *argv[]) {
         mat4x4_mul(m, h, m);                        // shear
         mat4x4_mul(m, s, m);                        // scale
         mat4x4_mul(m, t, m);                        // translate
-        mat4x4_mul(mvp, p, m);
-
         glUseProgram(program);
         glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) m);
         glDrawArrays(GL_QUADS, 0, 4);
@@ -345,7 +355,5 @@ int main(int argc, char *argv[]) {
 
     glfwTerminate();
     free(image.pixmap);
-    free(hdr);
-    fclose(in_ptr);
     exit(EXIT_SUCCESS);
 }
