@@ -24,8 +24,12 @@ Vertex vertexes[] = {
 
 // global variables representing translations
 float rotation_angle_rad = 0;
-float x_position = 0;
-float y_position = 0;
+float delta_x = 0;
+float delta_y = 0;
+float x_pos = 0;
+float y_pos = 0;
+float x_tilt = 0;
+float y_tilt = 0;
 float scale_factor = 1;
 float shear_x = 0;
 float shear_y = 0;
@@ -63,17 +67,27 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
 
-    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
-        x_position += translation_incr; // vectors are reversed
+    if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+        rotation_angle_rad = 0;
+        x_pos = 0;
+        y_pos = 0;
+        scale_factor = 1;
+        shear_x = 0;
+        shear_y = 0;
+    }
 
-    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
-        x_position -= translation_incr; // opposite of what it should be due to the vectors being reversed
 
-    if (key == GLFW_KEY_UP && action == GLFW_PRESS)
-        y_position += translation_incr;
+    if (key == GLFW_KEY_A && action == GLFW_PRESS)
+        x_pos += translation_incr;
+    
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+        x_pos -= translation_incr;
 
-    if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
-        y_position -= translation_incr;
+    if (key == GLFW_KEY_W && action == GLFW_PRESS)
+        y_pos += translation_incr;
+
+    if (key == GLFW_KEY_S && action == GLFW_PRESS)
+        y_pos -= translation_incr;
 
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
         rotation_angle_rad += rotation_incr;
@@ -81,11 +95,15 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_E && action == GLFW_PRESS)
         rotation_angle_rad -= rotation_incr;
 
-    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    if (key == GLFW_KEY_EQUAL && action == GLFW_PRESS)
         scale_factor += scale_incr;
 
-    if (key == GLFW_KEY_S && action == GLFW_PRESS)
-        scale_factor -= scale_incr;
+    if (key == GLFW_KEY_MINUS && action == GLFW_PRESS) {
+        if (scale_factor < 0.00001)
+            scale_factor = 0;
+        else
+            scale_factor -= scale_incr;
+    }
 
     if (key == GLFW_KEY_X && action == GLFW_PRESS)
         shear_x += shear_incr;
@@ -119,13 +137,13 @@ void glCompileShaderOrDie(GLuint shader) {
     }
 }
 
-void mat4x4_shear(mat4x4 M, mat4x4 a, float x, float y) {
-    /*mat4x4 H = {
-            {  1.f,   1.f,  0.f, 0.f},
-            {  1.f,   1.f,  0.f, 0.f},
-            { 0.f, 0.f, 1.f, 0.f},
-            { 0.f, 0.f, 0.f, 1.f}
-    };*/
+void mat4x4_shear(mat4x4 M, float x, float y) {
+    float h[4][4] = {
+            {1, x, 0, 0},
+            {0, 1, 0, 0},
+            {0, 0, 1, 0},
+            {0, 0, 0, 1}
+    };
 }
 
 int main(int argc, char *argv[]) {
@@ -183,7 +201,7 @@ int main(int argc, char *argv[]) {
      ***********************************/
     GLFWwindow* window;
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
-    GLint mvp_location, vpos_location;
+    GLuint mvp_location, vpos_location;
 
     glfwSetErrorCallback(error_callback);
 
@@ -231,10 +249,10 @@ int main(int argc, char *argv[]) {
     vpos_location = glGetAttribLocation(program, "vPos");
     assert(vpos_location != -1);
 
-    GLint texcoord_location = glGetAttribLocation(program, "TexCoordIn");
+    GLuint texcoord_location = glGetAttribLocation(program, "TexCoordIn");
     assert(texcoord_location != -1);
 
-    GLint tex_location = glGetUniformLocation(program, "Texture");
+    GLuint tex_location = glGetUniformLocation(program, "Texture");
     assert(tex_location != -1);
 
     glEnableVertexAttribArray(vpos_location);
@@ -270,7 +288,7 @@ int main(int argc, char *argv[]) {
     {
         float ratio;
         int width, height;
-        mat4x4 m, p, v, mvp;
+        mat4x4 m, p, mvp;
 
         glfwGetFramebufferSize(window, &width, &height);
         ratio = width / (float) height;
@@ -280,23 +298,30 @@ int main(int argc, char *argv[]) {
 
         mat4x4_identity(m);
         mat4x4 s = {
-                {scale_factor, 0, 0, 0},
-                {0, scale_factor, 0, 0},
-                {0, 0, 0, 0},
-                {0, 0, 0, 1}
+                {scale_factor, 0,            0, 0},
+                {0,            scale_factor, 0, 0},
+                {0,            0,            0, 0},
+                {0,            0,            0, 1}
         };
 
         mat4x4 h = {
-                {1, shear_x, 0, 0},
-                {shear_y, 1, 0, 0},
-                {0, 0, 1, 0},
-                {0, 0, 0, 1}
+                {1,       shear_x, 0, 0},
+                {shear_y, 1,       0, 0},
+                {0,       0,       1, 0},
+                {0,       0,       0, 1}
         };
 
-        mat4x4_translate(m, x_position, y_position, 0);
+        mat4x4 t = {
+                {1,     0,     0, 0},
+                {0,     1,     0, 0},
+                {0,     0,     1, 0},
+                {x_pos, y_pos, 0, 1}
+        };
+
         mat4x4_rotate_Z(m, m, rotation_angle_rad);
-        mat4x4_mul(m, s, m); // scale
         mat4x4_mul(m, h, m); // shear
+        mat4x4_mul(m, s, m); // scale
+        mat4x4_mul(m, t, m); // translate
         mat4x4_ortho(p, ratio, -ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
