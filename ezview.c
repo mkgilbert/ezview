@@ -16,10 +16,10 @@ typedef struct {
 // (-1, -1) (1, -1)
 
 Vertex vertexes[] = {
-        {{1, -1}, {0, 0.99999}},
-        {{1, 1},  {0, 0}},
-        {{-1, 1}, {0.99999, 0}},
-        {{-1, -1}, {0.99999, 0.99999}}
+        {{1, -1}, {0.99999, 0.99999}},
+        {{1, 1},  {0.99999, 0}},
+        {{-1, 1}, {0, 0}},
+        {{-1, -1}, {0, 0.99999}}
 };
 
 // global variables representing translations
@@ -34,28 +34,28 @@ float scale_factor = 1;
 float shear_x = 0;
 float shear_y = 0;
 float translation_incr = 0.1;
-float scale_incr = 0.2;
+float scale_incr = 0.05;
 float shear_incr = 0.1;
 float rotation_incr = 0.1;
 
 static const char* vertex_shader_text =
         "uniform mat4 MVP;\n"
-                "attribute vec2 TexCoordIn;\n"
-                "attribute vec2 vPos;\n"
-                "varying vec2 TexCoordOut;\n"
-                "void main()\n"
-                "{\n"
-                "    gl_Position = MVP * vec4(vPos, 0.0, 1.0);\n"
-                "    TexCoordOut = TexCoordIn;\n"
-                "}\n";
+        "attribute vec2 TexCoordIn;\n"
+        "attribute vec2 vPos;\n"
+        "varying vec2 TexCoordOut;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = MVP * vec4(vPos, 0.0, 1.0);\n"
+        "    TexCoordOut = TexCoordIn;\n"
+        "}\n";
 
 static const char* fragment_shader_text =
         "varying vec2 TexCoordOut;\n"
-                "uniform sampler2D Texture;\n"
-                "void main()\n"
-                "{\n"
-                "    gl_FragColor = texture2D(Texture, TexCoordOut);\n"
-                "}\n";
+        "uniform sampler2D Texture;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = texture2D(Texture, TexCoordOut);\n"
+        "}\n";
 
 static void error_callback(int error, const char* description)
 {
@@ -71,17 +71,18 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         rotation_angle_rad = 0;
         x_pos = 0;
         y_pos = 0;
+        x_tilt = 0;
+        y_tilt = 0;
         scale_factor = 1;
         shear_x = 0;
         shear_y = 0;
     }
 
-
     if (key == GLFW_KEY_A && action == GLFW_PRESS)
-        x_pos += translation_incr;
+        x_pos -= translation_incr;
     
     if (key == GLFW_KEY_D && action == GLFW_PRESS)
-        x_pos -= translation_incr;
+        x_pos += translation_incr;
 
     if (key == GLFW_KEY_W && action == GLFW_PRESS)
         y_pos += translation_incr;
@@ -89,11 +90,23 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
         y_pos -= translation_incr;
 
+    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+        x_tilt -= translation_incr;
+
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+        x_tilt += translation_incr;
+
+    if (key == GLFW_KEY_UP && action == GLFW_PRESS)
+        y_tilt += translation_incr;
+
+    if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
+        y_tilt -= translation_incr;
+
     if (key == GLFW_KEY_R && action == GLFW_PRESS)
-        rotation_angle_rad += rotation_incr;
+        rotation_angle_rad -= rotation_incr;
 
     if (key == GLFW_KEY_E && action == GLFW_PRESS)
-        rotation_angle_rad -= rotation_incr;
+        rotation_angle_rad += rotation_incr;
 
     if (key == GLFW_KEY_EQUAL && action == GLFW_PRESS)
         scale_factor += scale_incr;
@@ -137,15 +150,9 @@ void glCompileShaderOrDie(GLuint shader) {
     }
 }
 
-void mat4x4_shear(mat4x4 M, float x, float y) {
-    float h[4][4] = {
-            {1, x, 0, 0},
-            {0, 1, 0, 0},
-            {0, 0, 1, 0},
-            {0, 0, 0, 1}
-    };
-}
-
+/************************************************
+ * Main function - loads image and starts loop
+ ************************************************/
 int main(int argc, char *argv[]) {
 
     FILE *in_ptr;
@@ -223,7 +230,7 @@ int main(int argc, char *argv[]) {
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
-    // NOTE: OpenGL error checks have been omitted for brevity
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);      // hopefully this will fix the tilted image result I'm getting
 
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
@@ -293,8 +300,10 @@ int main(int argc, char *argv[]) {
         glfwGetFramebufferSize(window, &width, &height);
         ratio = width / (float) height;
 
+
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
+
 
         mat4x4_identity(m);
         mat4x4 s = {
@@ -312,21 +321,20 @@ int main(int argc, char *argv[]) {
         };
 
         mat4x4 t = {
-                {1,     0,     0, 0},
-                {0,     1,     0, 0},
+                {1,     0,     0, x_tilt},
+                {0,     1,     0, y_tilt},
                 {0,     0,     1, 0},
                 {x_pos, y_pos, 0, 1}
         };
 
-        mat4x4_rotate_Z(m, m, rotation_angle_rad);
-        mat4x4_mul(m, h, m); // shear
-        mat4x4_mul(m, s, m); // scale
-        mat4x4_mul(m, t, m); // translate
-        mat4x4_ortho(p, ratio, -ratio, -1.f, 1.f, 1.f, -1.f);
+        mat4x4_rotate_Z(m, m, rotation_angle_rad);  // rotation
+        mat4x4_mul(m, h, m);                        // shear
+        mat4x4_mul(m, s, m);                        // scale
+        mat4x4_mul(m, t, m);                        // translate
         mat4x4_mul(mvp, p, m);
 
         glUseProgram(program);
-        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
+        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) m);
         glDrawArrays(GL_QUADS, 0, 4);
 
         glfwSwapBuffers(window);
