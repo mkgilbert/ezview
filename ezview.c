@@ -27,7 +27,8 @@ float rotation_angle_rad = 0;
 float x_position = 0;
 float y_position = 0;
 float scale_factor = 1;
-float shear = 0;
+float shear_x = 0;
+float shear_y = 0;
 float translation_incr = 0.1;
 float scale_incr = 0.2;
 float shear_incr = 0.1;
@@ -80,6 +81,23 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_E && action == GLFW_PRESS)
         rotation_angle_rad -= rotation_incr;
 
+    if (key == GLFW_KEY_D && action == GLFW_PRESS)
+        scale_factor += scale_incr;
+
+    if (key == GLFW_KEY_S && action == GLFW_PRESS)
+        scale_factor -= scale_incr;
+
+    if (key == GLFW_KEY_X && action == GLFW_PRESS)
+        shear_x += shear_incr;
+
+    if (key == GLFW_KEY_Z && action == GLFW_PRESS)
+        shear_x -= shear_incr;
+
+    if (key == GLFW_KEY_V && action == GLFW_PRESS)
+        shear_y += shear_incr;
+
+    if (key == GLFW_KEY_C && action == GLFW_PRESS)
+        shear_y -= shear_incr;
 }
 
 void glCompileShaderOrDie(GLuint shader) {
@@ -175,7 +193,7 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(800, 600, "ezview", NULL, NULL);
+    window = glfwCreateWindow(image.width, image.height, "ezview", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -235,9 +253,6 @@ int main(int argc, char *argv[]) {
                           sizeof(Vertex),
                           (void*) (sizeof(float) * 2));
 
-    //int image_width = 4;
-    //int image_height = 4;
-
     GLuint texID;
     glGenTextures(1, &texID);
     glBindTexture(GL_TEXTURE_2D, texID);
@@ -264,8 +279,24 @@ int main(int argc, char *argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
+        mat4x4 s = {
+                {scale_factor, 0, 0, 0},
+                {0, scale_factor, 0, 0},
+                {0, 0, 0, 0},
+                {0, 0, 0, 1}
+        };
+
+        mat4x4 h = {
+                {1, shear_x, 0, 0},
+                {shear_y, 1, 0, 0},
+                {0, 0, 1, 0},
+                {0, 0, 0, 1}
+        };
+
         mat4x4_translate(m, x_position, y_position, 0);
         mat4x4_rotate_Z(m, m, rotation_angle_rad);
+        mat4x4_mul(m, s, m); // scale
+        mat4x4_mul(m, h, m); // shear
         mat4x4_ortho(p, ratio, -ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
