@@ -17,10 +17,21 @@ typedef struct {
 
 Vertex vertexes[] = {
         {{1, -1}, {0, 0.99999}},
-        {{1, 1},  {0.99999, 0.99999}},
+        {{1, 1},  {0, 0}},
         {{-1, 1}, {0.99999, 0}},
-        {{-1, -1}, {0, 0}}
+        {{-1, -1}, {0.99999, 0.99999}}
 };
+
+// global variables representing translations
+float rotation_angle_rad = 0;
+float x_position = 0;
+float y_position = 0;
+float scale_factor = 1;
+float shear = 0;
+float translation_incr = 0.1;
+float scale_incr = 0.2;
+float shear_incr = 0.1;
+float rotation_incr = 0.1;
 
 static const char* vertex_shader_text =
         "uniform mat4 MVP;\n"
@@ -50,6 +61,25 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+
+    if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+        x_position += translation_incr; // vectors are reversed
+
+    if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+        x_position -= translation_incr; // opposite of what it should be due to the vectors being reversed
+
+    if (key == GLFW_KEY_UP && action == GLFW_PRESS)
+        y_position += translation_incr;
+
+    if (key == GLFW_KEY_DOWN && action == GLFW_PRESS)
+        y_position -= translation_incr;
+
+    if (key == GLFW_KEY_R && action == GLFW_PRESS)
+        rotation_angle_rad += rotation_incr;
+
+    if (key == GLFW_KEY_E && action == GLFW_PRESS)
+        rotation_angle_rad -= rotation_incr;
+
 }
 
 void glCompileShaderOrDie(GLuint shader) {
@@ -71,28 +101,14 @@ void glCompileShaderOrDie(GLuint shader) {
     }
 }
 
-// 4 x 4 image..
-/*unsigned char image[] = {
-        255, 0, 0, 255,
-        255, 0, 0, 255,
-        255, 0, 0, 255,
-        255, 0, 0, 255,
-
-        0, 255, 0, 255,
-        0, 255, 0, 255,
-        0, 255, 0, 255,
-        0, 255, 0, 255,
-
-        0, 0, 255, 255,
-        0, 0, 255, 255,
-        0, 0, 255, 255,
-        0, 0, 255, 255,
-
-        255, 0, 255, 255,
-        255, 0, 255, 255,
-        255, 0, 255, 255,
-        255, 0, 255, 255
-};*/
+void mat4x4_shear(mat4x4 M, mat4x4 a, float x, float y) {
+    /*mat4x4 H = {
+            {  1.f,   1.f,  0.f, 0.f},
+            {  1.f,   1.f,  0.f, 0.f},
+            { 0.f, 0.f, 1.f, 0.f},
+            { 0.f, 0.f, 0.f, 1.f}
+    };*/
+}
 
 int main(int argc, char *argv[]) {
 
@@ -144,7 +160,9 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    /* OpenGL setup */
+    /***********************************
+     * OpenGL setup
+     ***********************************/
     GLFWwindow* window;
     GLuint vertex_buffer, vertex_shader, fragment_shader, program;
     GLint mvp_location, vpos_location;
@@ -157,7 +175,7 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    window = glfwCreateWindow(image.width, image.height, "Simple example", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "ezview", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -237,7 +255,7 @@ int main(int argc, char *argv[]) {
     {
         float ratio;
         int width, height;
-        mat4x4 m, p, mvp;
+        mat4x4 m, p, v, mvp;
 
         glfwGetFramebufferSize(window, &width, &height);
         ratio = width / (float) height;
@@ -246,8 +264,9 @@ int main(int argc, char *argv[]) {
         glClear(GL_COLOR_BUFFER_BIT);
 
         mat4x4_identity(m);
-        mat4x4_rotate_Z(m, m, (float) glfwGetTime());
-        mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+        mat4x4_translate(m, x_position, y_position, 0);
+        mat4x4_rotate_Z(m, m, rotation_angle_rad);
+        mat4x4_ortho(p, ratio, -ratio, -1.f, 1.f, 1.f, -1.f);
         mat4x4_mul(mvp, p, m);
 
         glUseProgram(program);
