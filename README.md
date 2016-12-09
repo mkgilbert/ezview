@@ -18,11 +18,11 @@ You can rebuild with `make clean` followed by `make` again.
 
 ## Controls:
 
-- Translate XY: w,a,s,d
-- Translate Z:  up,down,left,right
-- Scale:  -,=
-- Shear X: c,v
-- Shear Y: z,x
-- Rotate: r,e
-- Reset: ENTER
-- Quit: ESC
+- Translate XY: **w, a, s, d**
+- Translate Z:  **up, down, left, right**
+- Scale:  **-, =**
+- Shear X: **c, v**
+- Shear Y: **z, x**
+- Rotate: **r, e**
+- Reset: **ENTER**
+- Quit: **ESC**
