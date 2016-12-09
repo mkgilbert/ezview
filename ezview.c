@@ -62,6 +62,9 @@ static void error_callback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
+/**
+ * Setup key callbacks for the program to control movement of the image
+ */
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
@@ -163,10 +166,29 @@ void glLinkProgramOrDie(GLuint program) {
         fprintf(stderr, "Error: Unable to link program: %s\n", info);
     }
 }
+
+void help() {
+    printf("Usage: \tezview <filename.ppm>\n"
+                   "Controls:\n"
+                   "\t\tTranslate XY:  \tw,a,s,d\n"
+                   "\t\tTranslate Z:  \tup,down,left,right\n"
+                   "\t\tScale:  \t\t-,=\n"
+                   "\t\tShear X:  \t\tc,v\n"
+                   "\t\tShear Y:  \t\tz,x\n"
+                   "\t\tRotate:  \t\tr,e\n"
+                   "\t\tReset:  \t\tENTER\n"
+                   "\t\tQuit:  \t\tESC\n");
+}
 /************************************************
  * Main function - loads image and starts loop
  ************************************************/
 int main(int argc, char *argv[]) {
+
+    if (argc != 2) {
+        fprintf(stderr, "Error: main: There must be 1 argument\n");
+        help();
+        exit(1);
+    }
 
     FILE *in_ptr;
     int ret_val;
@@ -236,8 +258,7 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
     window = glfwCreateWindow(image.width, image.height, "ezview", NULL, NULL);
-    if (!window)
-    {
+    if (!window) {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
@@ -306,18 +327,22 @@ int main(int argc, char *argv[]) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texID);
     glUniform1i(tex_location, 0);
+    glUseProgram(program);
 
     while (!glfwWindowShouldClose(window))
     {
         int width, height;
-        mat4x4 m, p, mvp;
+        mat4x4 mvp;
 
         glfwGetFramebufferSize(window, &width, &height);
 
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        mat4x4_identity(m);
+        // starting matrix
+        mat4x4_identity(mvp);
+
+        // scale matrix
         mat4x4 s = {
                 {scale_factor, 0,            0, 0},
                 {0,            scale_factor, 0, 0},
@@ -325,6 +350,7 @@ int main(int argc, char *argv[]) {
                 {0,            0,            0, 1}
         };
 
+        // shear matrix
         mat4x4 h = {
                 {1,       shear_x, 0, 0},
                 {shear_y, 1,       0, 0},
@@ -332,6 +358,7 @@ int main(int argc, char *argv[]) {
                 {0,       0,       0, 1}
         };
 
+        // translation matrix (handles tilting toward viewer and movement left/right/up/down)
         mat4x4 t = {
                 {1,     0,     0, x_tilt},
                 {0,     1,     0, y_tilt},
@@ -339,20 +366,21 @@ int main(int argc, char *argv[]) {
                 {x_pos, y_pos, 0, 1}
         };
 
-        mat4x4_rotate_Z(m, m, rotation_angle_rad);  // rotation
-        mat4x4_mul(m, h, m);                        // shear
-        mat4x4_mul(m, s, m);                        // scale
-        mat4x4_mul(m, t, m);                        // translate
-        glUseProgram(program);
-        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) m);
+        // perform transformations
+        mat4x4_rotate_Z(mvp, mvp, rotation_angle_rad);  // rotation
+        mat4x4_mul(mvp, h, mvp);                        // shear
+        mat4x4_mul(mvp, s, mvp);                        // scale
+        mat4x4_mul(mvp, t, mvp);                        // translate
+
+        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) mvp);
         glDrawArrays(GL_QUADS, 0, 4);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
+    // cleanup and exit
     glfwDestroyWindow(window);
-
     glfwTerminate();
     free(image.pixmap);
     exit(EXIT_SUCCESS);
