@@ -12,9 +12,7 @@ typedef struct {
     float TexCoord[2];
 } Vertex;
 
-// (-1, 1)  (1, 1)
-// (-1, -1) (1, -1)
-
+// 4 x 4 quad structure mapped to 4 corners of image texture
 Vertex vertexes[] = {
         {{1, -1}, {0.99999, 0.99999}},
         {{1, 1},  {0.99999, 0}},
@@ -38,6 +36,7 @@ float scale_incr = 0.05;
 float shear_incr = 0.1;
 float rotation_incr = 0.1;
 
+/* GLSL code for vertex shader */
 static const char* vertex_shader_text =
         "uniform mat4 MVP;\n"
         "attribute vec2 TexCoordIn;\n"
@@ -49,6 +48,7 @@ static const char* vertex_shader_text =
         "    TexCoordOut = TexCoordIn;\n"
         "}\n";
 
+/* GLSL code for fragment shader */
 static const char* fragment_shader_text =
         "varying vec2 TexCoordOut;\n"
         "uniform sampler2D Texture;\n"
@@ -57,16 +57,14 @@ static const char* fragment_shader_text =
         "    gl_FragColor = texture2D(Texture, TexCoordOut);\n"
         "}\n";
 
-static void error_callback(int error, const char* description)
-{
+static void error_callback(int error, const char* description) {
     fprintf(stderr, "Error: %s\n", description);
 }
 
 /**
  * Setup key callbacks for the program to control movement of the image
  */
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
 
@@ -134,6 +132,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
         shear_y -= shear_incr;
 }
 
+/**
+ * Wrapper for glCompileShader to do error checking
+ * @param: shader - id of shader
+ */
 void glCompileShaderOrDie(GLuint shader) {
     GLint compiled;
     glCompileShader(shader);
@@ -153,6 +155,10 @@ void glCompileShaderOrDie(GLuint shader) {
     }
 }
 
+/**
+ * Wrapper for glLinkProgram to do error checking
+ * @param: program - id of opengl program
+ */
 void glLinkProgramOrDie(GLuint program) {
     GLint linked;
     glLinkProgram(program);
@@ -167,18 +173,23 @@ void glLinkProgramOrDie(GLuint program) {
     }
 }
 
+/**
+ * help() - prints out program info and instructions
+ */
 void help() {
     printf("Usage: \tezview <filename.ppm>\n"
                    "Controls:\n"
                    "\t\tTranslate XY:  \tw,a,s,d\n"
                    "\t\tTranslate Z:  \tup,down,left,right\n"
-                   "\t\tScale:  \t\t-,=\n"
-                   "\t\tShear X:  \t\tc,v\n"
-                   "\t\tShear Y:  \t\tz,x\n"
-                   "\t\tRotate:  \t\tr,e\n"
-                   "\t\tReset:  \t\tENTER\n"
+                   "\t\tScale:  \t-,=\n"
+                   "\t\tShear X:  \tc,v\n"
+                   "\t\tShear Y:  \tz,x\n"
+                   "\t\tRotate:  \tr,e\n"
+                   "\t\tReset:  \tENTER\n"
                    "\t\tQuit:  \t\tESC\n");
 }
+
+
 /************************************************
  * Main function - loads image and starts loop
  ************************************************/
@@ -205,7 +216,7 @@ int main(int argc, char *argv[]) {
     header *hdr = (header *)malloc(sizeof(header));
 
 
-    /******************************//**
+    /*********************************
      * read data from input file
      *********************************/
 
@@ -254,6 +265,7 @@ int main(int argc, char *argv[]) {
     if (!glfwInit())
         exit(EXIT_FAILURE);
 
+    glfwDefaultWindowHints();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
@@ -268,7 +280,7 @@ int main(int argc, char *argv[]) {
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);      // hopefully this will fix the tilted image result I'm getting
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);      // fixes tilted image problem
 
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
@@ -329,6 +341,7 @@ int main(int argc, char *argv[]) {
     glUniform1i(tex_location, 0);
     glUseProgram(program);
 
+    /* main program loop */
     while (!glfwWindowShouldClose(window))
     {
         int width, height;
